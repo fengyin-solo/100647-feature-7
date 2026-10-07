@@ -24,6 +24,68 @@
       </span>
     </p>
 
+    <section class="checklist-card">
+      <header class="checklist-head">
+        <div>
+          <h3>值班交接待核对清单（垃圾池待倒料）</h3>
+          <p class="page-desc">
+            垃圾池管理查出来的待倒料结果落到这里，交接双方逐条核对；共 {{ checklist.length }} 条，
+            待核对 {{ pendingCheckCount }} 条，已核对 {{ checkedCount }} 条。
+          </p>
+        </div>
+        <button
+          v-if="checklist.length"
+          class="btn ghost"
+          type="button"
+          @click="clearChecklistItems"
+        >
+          清空清单
+        </button>
+      </header>
+      <table v-if="checklist.length" class="data-table">
+        <thead>
+          <tr>
+            <th>池区编号</th>
+            <th>倒料日期</th>
+            <th>发酵天数</th>
+            <th>渗滤液液位</th>
+            <th>垃圾存量</th>
+            <th>抓斗操作人</th>
+            <th>加入时间</th>
+            <th>核对状态</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="item in checklist" :key="String(item.pitId)">
+            <td>{{ item.code }}</td>
+            <td>{{ item.dumpDate }}</td>
+            <td>{{ item.fermentDays === '' ? '—' : item.fermentDays }}</td>
+            <td>{{ item.level === '' ? '—' : item.level }}</td>
+            <td>{{ item.storage === '' ? '—' : item.storage }}</td>
+            <td>{{ item.operator || '—' }}</td>
+            <td>{{ formatTime(item.addedAt) }}</td>
+            <td>
+              <label class="check-state">
+                <input
+                  type="checkbox"
+                  :checked="item.checked"
+                  @change="toggleChecked(item.pitId, !item.checked)"
+                />
+                {{ item.checked ? '已核对' : '待核对' }}
+              </label>
+            </td>
+            <td>
+              <button class="link" type="button" @click="removeItem(item.pitId)">移除</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p v-else class="empty-state checklist-empty">
+        待核对清单还是空的：可到「垃圾池管理」查出「需倒料」池区后加入清单，交接时逐条核对
+      </p>
+    </section>
+
     <form class="filter-bar" @submit.prevent="reload">
       <label v-for="field in filterFields" :key="field" class="filter-item">
         <span>{{ field }}</span>
@@ -79,6 +141,13 @@ import {
   moduleMeta,
   runAction as applyAction,
 } from '@/api/local-service'
+import {
+  clearChecklist,
+  listChecklist,
+  removeCheckItem,
+  setCheckItemChecked,
+} from '@/api/handover'
+import type { HandoverCheckItem } from '@/data/handover-checklist'
 import type { EntryRow } from '@/data/types'
 
 const meta = moduleMeta('shift')
@@ -102,6 +171,40 @@ const statusSummary = computed(() =>
 function resetFilters() {
   filters.value = {}
   reload()
+}
+
+const checklist = ref<HandoverCheckItem[]>([])
+const pendingCheckCount = computed(() => checklist.value.filter((item) => !item.checked).length)
+const checkedCount = computed(() => checklist.value.filter((item) => item.checked).length)
+
+function refreshChecklist() {
+  checklist.value = listChecklist()
+}
+
+function toggleChecked(pitId: number, checked: boolean) {
+  setCheckItemChecked(pitId, checked)
+  refreshChecklist()
+}
+
+function removeItem(pitId: number) {
+  removeCheckItem(pitId)
+  refreshChecklist()
+}
+
+function clearChecklistItems() {
+  clearChecklist()
+  refreshChecklist()
+}
+
+function formatTime(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) {
+    return iso
+  }
+  const pad = (value: number) => String(value).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(
+    date.getHours(),
+  )}:${pad(date.getMinutes())}`
 }
 
 function exportRows() {
@@ -133,5 +236,8 @@ function reload() {
   }
 }
 
-onMounted(reload)
+onMounted(() => {
+  refreshChecklist()
+  reload()
+})
 </script>
