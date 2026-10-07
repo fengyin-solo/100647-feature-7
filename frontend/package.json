@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "vue-tsc --noEmit"
+    "typecheck": "vue-tsc --noEmit",
+    "verify": "node scripts/transpile-verify.cjs && node -e \"require('./node_modules/.tmp-test/shim.cjs'); require('./node_modules/.tmp-test/scripts/verify-pit.cjs'); require('./node_modules/.tmp-test/scripts/verify-flow.cjs')\""
   },
   "dependencies": {
     "pinia": "^2.1.7",

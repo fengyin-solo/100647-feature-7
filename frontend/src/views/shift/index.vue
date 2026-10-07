@@ -18,6 +18,56 @@
       </article>
     </div>
 
+    <!-- 垃圾池倒料定位结果落到这里：接班先核对待倒料池区 -->
+    <section class="check-panel">
+      <header class="check-head">
+        <h3>交接待核对清单（垃圾池倒料）</h3>
+        <div class="check-actions">
+          <span class="check-count">待核对 {{ pendingCount }} 条 · 已核对 {{ checkedCount }} 条</span>
+          <button class="btn btn-sm ghost" type="button" :disabled="!checkedCount" @click="clearChecked">清除已核对</button>
+        </div>
+      </header>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>池区编号</th>
+            <th>发酵天数</th>
+            <th>渗滤液液位</th>
+            <th>口径日期</th>
+            <th>加入时间</th>
+            <th>核对说明</th>
+            <th>状态</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="item in checklist" :key="item.id" :class="{ 'is-checked': item.checked }">
+            <td>{{ item.code }}</td>
+            <td>{{ item.fermentDays }} 天</td>
+            <td>{{ item.leachateMeter }}m</td>
+            <td>{{ item.basisDate }}</td>
+            <td>{{ item.createdAt }}</td>
+            <td>{{ item.remark }}</td>
+            <td>
+              <span class="tag" :class="item.checked ? 'tag-low' : 'tag-high'">
+                {{ item.checked ? '已核对' : '待核对' }}
+              </span>
+            </td>
+            <td class="row-actions">
+              <button class="link" type="button" @click="toggle(item.id, !item.checked)">
+                {{ item.checked ? '恢复待核对' : '核对完成' }}
+              </button>
+              <button class="link danger" type="button" @click="remove(item.id)">移除</button>
+            </td>
+          </tr>
+          <tr v-if="!checklist.length">
+            <td colspan="8" class="empty-state">待核对清单还是空的：到「垃圾池管理」用倒料定位查出需倒料池区后，可一键加入这里。</td>
+          </tr>
+        </tbody>
+      </table>
+      <p v-if="notice" class="ok-text">{{ notice }}</p>
+    </section>
+
     <p class="status-legend">
       <span v-for="item in statusSummary" :key="item.status" class="legend-item">
         {{ item.status }}：{{ item.count }}
@@ -74,18 +124,24 @@
 import { computed, onMounted, ref } from 'vue'
 
 import {
+  clearCheckedItems,
+  handoverChecklist,
+  markChecklistChecked,
+  removeChecklistItem,
+} from '@/api/handover-service'
+import {
   downloadEntries,
   listEntries,
   moduleMeta,
   runAction as applyAction,
 } from '@/api/local-service'
-import type { EntryRow } from '@/data/types'
+import type { ChecklistItem, EntryRow } from '@/data/types'
 
 const meta = moduleMeta('shift')
-const columns = ["交接编号", "值班班组", "班次", "交班人员", "接班人员", "交接事项", "交接时间", "交接状态"]
-const actions = ["发起交接", "确认交接", "登记遗留"]
-const statuses = ["待交接", "交接中", "已交接", "有遗留"]
-const stats = [{"label": "待交接班次", "value": 0}, {"label": "已交接班次", "value": 0}, {"label": "有遗留事项", "value": 0}]
+const columns = ['交接编号', '值班班组', '班次', '交班人员', '接班人员', '交接事项', '交接时间', '交接状态']
+const actions = ['发起交接', '确认交接', '登记遗留']
+const statuses = ['待交接', '交接中', '已交接', '有遗留']
+const stats = [{ label: '待交接班次', value: 0 }, { label: '已交接班次', value: 0 }, { label: '有遗留事项', value: 0 }]
 
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
@@ -98,6 +154,35 @@ const statusSummary = computed(() =>
     count: rows.value.filter((row) => String(row.status) === status).length,
   })),
 )
+
+const checklist = ref<ChecklistItem[]>([])
+const notice = ref('')
+const pendingCount = computed(() => checklist.value.filter((item) => !item.checked).length)
+const checkedCount = computed(() => checklist.value.filter((item) => item.checked).length)
+
+function loadChecklist() {
+  checklist.value = handoverChecklist()
+}
+
+function toggle(id: number, checked: boolean) {
+  const result = markChecklistChecked(id, checked)
+  notice.value = result.ok ? result.message : ''
+  if (!result.ok) errorMessage.value = result.message
+  loadChecklist()
+}
+
+function remove(id: number) {
+  const result = removeChecklistItem(id)
+  notice.value = result.ok ? result.message : ''
+  if (!result.ok) errorMessage.value = result.message
+  loadChecklist()
+}
+
+function clearChecked() {
+  clearCheckedItems()
+  notice.value = '已清除核对完成的条目'
+  loadChecklist()
+}
 
 function resetFilters() {
   filters.value = {}
@@ -133,5 +218,8 @@ function reload() {
   }
 }
 
-onMounted(reload)
+onMounted(() => {
+  reload()
+  loadChecklist()
+})
 </script>

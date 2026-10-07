@@ -36,3 +36,22 @@ export type OverviewResult = {
   cards: { label: string; value: number }[]
   modules: { name: string; created: number; pending: number; abnormal: number }[]
 }
+
+// 倒料定位结果落到值班交接的「待核对清单」：一条对应一个待倒料池区。
+export type ChecklistItem = {
+  id: number
+  pitId: number
+  code: string
+  fermentDays: number
+  leachateMeter: number
+  basisDate: string
+  remark: string
+  checked: boolean
+  createdAt: string
+}
+
+export type ChecklistAddResult = {
+  added: number
+  skipped: number
+  items: ChecklistItem[]
+}
